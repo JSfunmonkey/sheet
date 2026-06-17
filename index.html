@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grand Staff Studio Suite - Visual PDF Export</title>
+
+  <script>
+    window.appStartTimers = { start: performance.now() };
+    console.log("⏱️ [0/12] HTML parsing started. Time Zero established.");
+  </script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      background-color: #eef2f3;
+      color: #333;
+    }
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    h2, h3 { margin-top: 0; color: #2c3e50; }
+    
+    .studio-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+    .telemetry-pillbox { display: flex; gap: 10px; }
+
+    /* ------------------------------------------------------------- */
+    /* PERSISTENT STICKY SPLIT LAYOUT ENGINE                         */
+    /* ------------------------------------------------------------- */
+    .studio-workspace-grid {
+      display: flex;
+      gap: 25px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    /* Left panel tracks alongside the user viewport during scrolling */
+    .studio-sticky-control-sidebar {
+      flex: 0 0 420px;
+      position: -webkit-sticky;
+      position: sticky;
+      top: 20px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      background: #ffffff;
+      padding: 5px;
+      z-index: 50;
+    }
+
+    /* Right panel spans to accommodate long vector music staves */
+    .studio-canvas-content-pane {
+      flex: 1;
+      min-width: 0; 
+    }
+
+    /* ------------------------------------------------------------- */
+    /* CONTROL PANEL STRUCTURE & HIGH-CONTRAST SEPARATION BARS       */
+    /* ------------------------------------------------------------- */
+    .top-menu-bar {
+      display: flex;
+      background: #1e293b;
+      padding: 6px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      gap: 5px;
+      border-bottom: 4px solid #334155; 
+    }
+    .menu-tab-btn {
+      background: transparent;
+      color: #94a3b8;
+      border: none;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex: 1;
+      text-align: center;
+    }
+    .menu-tab-btn:hover { color: #f8fafc; background: rgba(255,255,255,0.05); }
+    
+    .menu-tab-btn.active { 
+      color: white; 
+      background: #2563eb; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-top: 3px solid #60a5fa; 
+    }
+
+    .section-panel {
+      display: none; 
+      background: #f8f9fa;
+      padding: 20px;
+      margin-bottom: 25px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+    }
+    .section-panel.visible { display: block; }
+    
+    /* Vibrant Royal Blue Top Accent Bar for the Dynamic Editor Panel */
+    #panel-entry.section-panel {
+      border-top: 6px solid #2563eb; 
+    }
+    
+    /* Vibrant Emerald Green Top Accent Bar for Canvas Config Panel */
+    #panel-setup.section-panel {
+      border-top: 6px solid #10b981; 
+    }
+    
+    /* Vibrant Purple Top Accent Bar for Local Ledger Storage Panel */
+    #panel-storage.section-panel {
+      border-top: 6px solid #8b5cf6; 
+    }
+    
+    /* Mid-tier Dashed Divider separating controls from canvas sheet */
+    .notation-divider-bar {
+      border-top: 4px dashed #cbd5e1;
+      margin: 10px 0 15px 0;
+      padding-top: 20px;
+    }
+    
+    .form-group { margin-bottom: 14px; display: flex; align-items: center; }
+    label { display: inline-block; width: 140px; font-weight: bold; color: #475569; font-size: 14px; }
+    input[type="text"], select { padding: 7px 12px; width: 220px; border: 1px solid #cbd5e1; border-radius: 5px; outline: none; font-size: 14px; }
+    
+    button { padding: 9px 16px; font-size: 13px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background 0.15s ease; }
+    button:hover { opacity: 0.95; }
+    .btn-primary { background-color: #2563eb; color: white; }
+    .btn-success { background-color: #10b981; color: white; }
+    .btn-warning { background-color: #f59e0b; color: white; }
+    .btn-danger { background-color: #ef4444; color: white; }
+    .btn-dark { background-color: #475569; color: white; }
+    
+    .status-badge { display: inline-block; padding: 6px 12px; background: #e2e8f0; border-radius: 6px; font-size: 13px; font-weight: bold; color: #334155; }
+
+    #paper-preview {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #fff;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      min-height: 500px;
+      overflow-x: auto;
+      position: relative;
+    }
+    #paper-preview svg { cursor: crosshair !important; pointer-events: auto !important; }
+    
+    .custom-clickable-note { cursor: pointer !important; pointer-events: auto !important; }
+    .custom-clickable-note:hover path.vf-notehead { fill: #dc2626 !important; stroke: #dc2626 !important; }
+    
+    .audio-control-cluster {
+      background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .audio-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .volume-slider-box { display: flex; align-items: center; gap: 8px; background: #e2e2f0; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; justify-content: space-between; }
+    .pdf-panel { text-align: center; padding-top: 15px; border-top: 1px solid #e2e8f0; }
+    .pdf-panel button { font-size: 16px; padding: 14px 35px; width: 100%; }
+    .nav-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .nav-row button { flex: 1 1 45%; }
+
+    .inspector-readout-deck {
+      background: #fdfdfd;
+      border: 1px dashed #cbd5e1;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #0f172a;
+      line-height: 1.4;
+    }
+    .storage-cluster-actions { display: flex; gap: 10px; margin-top: 15px; }
+    .storage-cluster-actions button { flex: 1; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="studio-header">
+    <h2>Grand Staff Studio Suite (Complete Unabridged Engine)</h2>
+    <div class="telemetry-pillbox">
+      <span class="status-badge" id="measure-counter">Measures: 1</span>
+      <span class="status-badge" style="background-color: #dbeafe; color: #1e40af;" id="cursor-counter">Selected ID: None</span>
+    </div>
+  </div>
+
+  <div class="studio-workspace-grid">
+    <div class="studio-sticky-control-sidebar">
+      <div class="audio-control-cluster">
+        <strong style="color:#1e293b;">Audio Engine Transport:</strong>
+        <div class="audio-btn-row">
+          <button class="btn-success" id="play-start-btn" style="flex:1;">▶ Play</button>
+          <button class="btn-danger" id="play-stop-btn" style="flex:1;">🛑 Stop</button>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label style="width:auto;" for="audio-track-filter">Track Routing:</label>
+          <select id="audio-track-filter" style="width:100%;">
+            <option value="both">Grand Staff (Treble + Bass)</option>
+            <option value="treble">Treble Staff Only</option>
+            <option value="bass">Bass Staff Only</option>
+          </select>
+        </div>
+
+        <div class="volume-slider-box">
+          <span>🔊 Master Vol:</span>
+          <input type="range" id="master-volume" min="0" max="1" step="0.05" value="0.3" style="width:140px; cursor:pointer;">
+          <span id="volume-readout">30%</span>
+        </div>
+      </div>
+
+      <div class="top-menu-bar">
+        <button class="menu-tab-btn active" data-target="panel-entry">1. Editor</button>
+        <button class="menu-tab-btn" data-target="panel-setup">2. Config</button>
+        <button class="menu-tab-btn" data-target="panel-storage" id="storage-menu-tab">3. Storage</button>
+      </div>
+
+      <div id="panel-entry" class="section-panel visible">
+        <h3>1. Tool Palette & Sliders</h3>
+        <div class="form-group">
+          <label for="editor-tool">Input Tool:</label>
+          <select id="editor-tool">
+            <option value="note">Placement Pointer 🎵</option>
+            <option value="rest">Rest Placement Tool 🛑</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="note-duration">Duration:</label>
+          <select id="note-duration">
+            <option value="w">Whole (4 Beats)</option>
+            <option value="h">Half (2 Beats)</option>
+            <option value="q" selected>Quarter (1 Beat)</option>
+            <option value="8">Eighth (0.5 Beats)</option>
+            <option value="16">Sixteenth (0.25 Beats)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="note-accidental">Accidental:</label>
+          <select id="note-accidental">
+            <option value="none">Natural / None</option>
+            <option value="#">Sharp (♯)</option>
+            <option value="b">Flat (♭)</option>
+            <option value="##">Double Sharp (𝄪)</option>
+            <option value="bb">Double Flat (𝄫)</option>
+            <option value="n">Natural Explicit (♮)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="note-dotted">Rhythmic Dot:</label>
+          <select id="note-dotted">
+            <option value="false">Standard Value</option>
+            <option value="true">Dotted Value (1.5x)</option>
+          </select>
+        </div>
+        
+        <div class="nav-row" style="margin-top:15px;">
+          <button class="btn-primary" id="nav-prev">← Left</button>
+          <button class="btn-primary" id="nav-next">Right →</button>
+          <button class="btn-danger" id="action-delete">Delete Note</button>
+        </div>
+        <div class="nav-row">
+          <button class="btn-dark" id="clear-btn" style="width:100%;">Reset Entire Board</button>
+        </div>
+
+        <div class="inspector-readout-deck" id="inspector-readout">
+          <strong>Active Node Token:</strong> No element selected. Click a note head to evaluate composition parameters.
+        </div>
+      </div>
+
+      <div id="panel-setup" class="section-panel">
+        <h3>2. Parameters</h3>
+        <div class="form-group">
+          <label for="music-title">Song Title:</label>
+          <input type="text" id="music-title" value="Interactive Score Studio">
+        </div>
+        <div class="form-group">
+          <label for="time-sig">Time Signature:</label>
+          <select id="time-sig">
+            <option value="4/4">4/4 (Common Time)</option>
+            <option value="3/4">3/4 (Waltz Time)</option>
+            <option value="2/4">2/4 (March Time)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="key-sig">Key Signature:</label>
+          <select id="key-sig">
+            <option value="C" selected>C Major (No ♯/♭)</option>
+            <option value="G">G Major (1 ♯)</option>
+            <option value="D">D Major (2 ♯)</option>
+            <option value="A">A Major (3 ♯)</option>
+            <option value="E">E Major (4 ♯)</option>
+            <option value="F">F Major (1 ♭)</option>
+            <option value="Bb">B♭ Major (2 ♭)</option>
+            <option value="Eb">E♭ Major (3 ♭)</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+          <label for="tempo-bpm">Tempo (BPM): <span id="tempo-readout" style="font-weight: bold; color: #10b981;">120 BPM</span></label>
+          <input type="range" id="tempo-bpm" min="60" max="200" step="5" value="120" style="width:100%; cursor:pointer;">
+        </div>
+      </div>
+
+      <div id="panel-storage" class="section-panel">
+        <h3>3. Storage Ledger</h3>
+        <div class="form-group">
+          <label for="song-name-input">File Name:</label>
+          <input type="text" id="song-name-input" value="my-studio-score" placeholder="sonata-no-1">
+        </div>
+        
+        <div class="form-group" style="margin-top: 20px; flex-direction:column; align-items:flex-start; gap:4px;">
+          <label for="song-ledger-select">Saved Songs Pool:</label>
+          <select id="song-ledger-select" style="width:100%;">
+            <option value="">-- No Scores Found --</option>
+          </select>
+        </div>
+        
+        <div class="storage-cluster-actions" style="flex-wrap: wrap; gap: 6px;">
+          <button class="btn-success" id="save-btn">💾 Save</button>
+          <button class="btn-primary" style="background-color: #4f46e5;" id="load-btn">📂 Load</button>
+          <button class="btn-warning" id="rename-btn">✏️ Rename</button>
+          <button class="btn-danger" id="delete-storage-btn">🗑️ Delete</button>
+        </div>
+
+        <div class="notation-divider-bar" style="margin-top:15px; border-top: 2px dashed #cbd5e1;"></div>
+
+        <h4 style="margin: 10px 0; color: #475569;">Cross-Computer Sharing</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn-dark" id="export-batch-btn" style="width:100%; background-color: #0f172a;">📤 Export Selected Song to File</button>
+          
+          <label class="btn-dark" style="width:auto; text-align:center; background-color: #475569; color:white; padding: 9px 16px; border-radius:5px; cursor:pointer; font-size:13px; font-weight:bold;">
+            📥 Import Shared Song File
+            <input type="file" id="import-file-input" accept=".json" style="display:none;">
+          </label>
+        </div>
+      </div>
+
+      <div class="pdf-panel">
+        <button class="btn-primary" style="background-color: #4f46e5;" id="generate-btn">Export Clean Blueprint PDF</button>
+      </div>
+    </div>
+
+    <div class="studio-canvas-content-pane">
+      <h3 class="notation-divider-bar" style="color:#1e293b;">Live Interactive Notation Interface</h3>
+      <div id="paper-preview"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script src="src/core/state.js"></script>
+<script src="src/core/pitchMapping.js"></script>
+<script src="src/layout/geometryTracker.js"></script>
+
+<script src="src/services/audioSynth.js"></script>
+<script src="src/services/storageLedger.js"></script>
+<script src="src/services/pdfExporter.js"></script>
+
+<script src="src/interaction/historyManager.js"></script>
+<script src="src/interaction/clipboardSystem.js"></script>
+<script src="src/interaction/uiSync.js"></script>
+<script src="src/interaction/clickHandler.js"></script>
+  
+<script src="src/layout/layoutEngine.js"></script>
+  
+<script src="src/main.js"></script>
+</body>
+</html>
